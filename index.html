@@ -1,0 +1,80 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Foster AI Studio</title>
+<style>
+:root{--bg:#fff;--fg:#1c1c1c;--card:#f6f3ef;--acc:#f26b21;--bd:#e2dcd4}
+@media(prefers-color-scheme:dark){:root{--bg:#141210;--fg:#f1ece6;--card:#1f1c19;--bd:#35302b}}
+*{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+main{max-width:820px;margin:auto;padding:20px}h1{color:var(--acc);font-family:Georgia,serif;font-style:italic;margin:0 0 8px}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}button,.dl{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:15px;text-decoration:none;display:inline-block}
+nav button{background:var(--card);color:var(--fg);border:1px solid var(--bd);padding:7px 12px;font-size:14px}nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+section{display:none;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px}section.on{display:block}
+label{display:block;font-size:13px;opacity:.75;margin-top:10px}
+textarea,input,select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:8px;padding:10px;margin:4px 0;font:inherit}
+img,audio{max-width:100%;margin:12px 0;display:block;background:repeating-conic-gradient(#8883 0 25%,#0000 0 50%) 0 0/16px 16px}
+pre{white-space:pre-wrap}.m{opacity:.7;font-size:14px;margin:6px 0}.sw{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.sw div{flex:1 1 110px;border-radius:8px;padding:14px 8px;text-align:center;font-size:13px;border:1px solid var(--bd)}.o{margin-top:12px}
+</style></head><body><main>
+<h1>Foster AI Studio</h1>
+<input id="key" type="password" placeholder="Studio key (FOSTER_API_KEY)">
+<nav id="nav"></nav><div id="secs"></div>
+</main><script>
+const $=i=>document.getElementById(i),H=()=>({Authorization:"Bearer "+$("key").value});
+const PRE=[["","(none, use custom size)"],["instagram-post","Instagram post 1080×1080"],["instagram-portrait","Instagram portrait 1080×1350"],["story-reel","Story / Reel 1080×1920"],["facebook-cover","Facebook cover 820×312"],["linkedin-banner","LinkedIn banner 1584×396"],["youtube-thumbnail","YouTube thumbnail 1280×720"],["whatsapp-dp","WhatsApp DP 640×640"],["a4-300dpi","A4 print, 300 DPI"],["visiting-card-90x54mm-300dpi","Visiting card 90×54 mm, 300 DPI"]];
+const IMG={accept:"image/*"},AUD={accept:"audio/*,video/*"};
+// field: [name, type, label, options]   types: text, textarea, number, color, select, file
+const TOOLS=[
+{id:"image",label:"AI image",url:"/api/image",json:1,hint:"Needs ComfyUI running.",f:[["prompt","textarea","Describe the image"],["width","number","Width",{value:1024}],["height","number","Height",{value:1024}]]},
+{id:"voice",label:"AI voice",url:"/api/voice",hint:"Optional: upload a short clean clip and type exactly what it says to clone that voice. Only clone voices you have permission to use.",f:[["text","textarea","Text to speak"],["ref_audio","file","Reference clip (optional)",AUD],["ref_text","text","Transcript of the reference clip"]]},
+{id:"stt",label:"Transcribe",url:"/api/transcribe",f:[["file","file","Audio or video",AUD]]},
+{id:"mockup",label:"Mockups",url:"/api/tools/mockup",hint:"Instant previews of a design in use. Choose 'All' for a ZIP of the set that suits it. Logo mode needs a logo on a transparent PNG (a logo on plain white also works).",f:[["file","file","Design or logo",IMG],["back","file","Back of card (optional, card mockup only)",IMG],["kind","select","Mockup",[["all","All (ZIP)"],["business-card","Business card"],["poster-frame","Framed poster"],["phone","Phone / social post"],["browser","Website in browser"],["signboard","Shop signboard (logo)"],["logo-board","Logo presentation board (logo)"]]],["mode","select","The file is",[["art","Full artwork (poster, post, website, card)"],["logo","A logo"]]],["bg","text","Background colour (HEX, blank = automatic)"],["brand","text","Brand colour (HEX, blank = taken from the design)"]]},
+{id:"pitch",label:"Pitch deck (PPT)",url:"/api/pitch/build",hint:"Builds an editable PowerPoint with speaker notes. Only the designs, client and project are required; empty sections are left out. Quick = designs + mockups + next steps. Long text is trimmed to fit the slides.",
+ f:[["files","file","Designs to present (in order)",{...IMG,multiple:1}],["logo","file","Logo (optional, used for the cover, palette and logo mockups)",IMG],["client","text","Client name"],["project","text","Project title"],
+ ["mode","select","Deck",[["full","Full client pitch"],["quick","Quick design presentation"]]],["dtype","select","The design is",[["logo","A logo / brand identity"],["poster","A poster or social post"],["website","A website or app screen"]]],["theme","select","Look",[["light","Light"],["dark","Dark"]]],["accent","text","Accent colour (HEX)",{value:"#f26b21"}],
+ ["brief","textarea","The client's brief (their words or your notes)"],["objectives","textarea","Objectives (one per line)"],["rationale","textarea","Design rationale: the idea behind it"],["ai_write","select","Fill empty objectives/rationale with the local AI writer",[["0","No"],["1","Yes (review the text)"]]],
+ ["captions","textarea","Caption for each design (one per line, same order)"],["palette","select","Colour palette slide",[["1","Yes"],["0","No"]]],["mockups","select","Mockups slide",[["1","Yes"],["0","No"]]],
+ ["about","textarea","About your studio (blank = AGENCY_ABOUT in .env)"],["services","textarea","Services (one per line, blank = AGENCY_SERVICES in .env)"],
+ ["items","textarea","Pricing: description | quantity | rate (max 8 lines)"],["gst_percent","number","GST % (0 if not applicable)",{value:0}],["terms","textarea","Payment terms / notes"],["timeline","textarea","Timeline: stage | days (max 6 lines)"],["next_steps","textarea","Next steps (one per line, blank = standard steps)"]]},
+{id:"resize",label:"Resize / export",url:"/api/tools/resize",hint:"Batch resize for social, print or web. Several files come back as a ZIP.",f:[["files","file","Images",{...IMG,multiple:1}],["preset","select","Preset",PRE],["width","number","…or custom width (px)"],["height","number","…custom height (px)"],["mode","select","Mode",[["fill","Fill: crop to exact size"],["fit","Fit inside: no crop"]]],["fmt","select","Format",[["jpg","JPG"],["png","PNG"],["webp","WebP"]]],["quality","number","Quality (1-100)",{value:88}]]},
+{id:"cutout",label:"Remove background",url:"/api/tools/cutout",hint:"Transparent PNG. The first use downloads a model, so it is slow once.",f:[["file","file","Image",IMG]]},
+{id:"vector",label:"Image → SVG",url:"/api/tools/vectorize",hint:"Trace a logo or sketch into vectors. Always check and clean it in CorelDRAW or Illustrator.",f:[["file","file","Image",IMG],["mode","select","Mode",[["color","Colour"],["binary","Black & white (logos)"]]]]},
+{id:"palette",label:"Colour palette",url:"/api/tools/palette",hint:"Main colours with HEX codes and the readable text colour for each.",f:[["file","file","Image",IMG],["n","number","How many colours (2-12)",{value:6}]]},
+{id:"wm",label:"Watermark",url:"/api/tools/watermark",hint:"Put your logo (PNG with transparency works best) on a design.",f:[["file","file","Design",IMG],["logo","file","Logo",IMG],["position","select","Position",[["br","Bottom right"],["bl","Bottom left"],["tr","Top right"],["tl","Top left"],["cc","Centre"]]],["scale","number","Logo width (0.05-1 of image)",{value:0.2,step:0.05}],["opacity","number","Opacity (0-1)",{value:0.7,step:0.1}]]},
+{id:"qr",label:"QR code",url:"/api/tools/qr",f:[["text","textarea","Link or text"],["fg","color","Dots",{value:"#000000"}],["bg","color","Background",{value:"#ffffff"}],["size","number","Size (px)",{value:1024}]]},
+{id:"pdf",label:"Images → PDF",url:"/api/tools/to-pdf",hint:"Combine proofs or a portfolio into one PDF, in the order selected.",f:[["files","file","Images",{...IMG,multiple:1}]]},
+{id:"write",label:"Copywriter",url:"/api/tools/write",json:1,hint:"Uses a local Ollama model, so check it for accuracy before sending to a client.",f:[["task","select","Task",[["caption","Social captions"],["hashtags","Hashtags"],["brief","Design brief from notes"],["client_reply","Reply to a client"],["rewrite","Rewrite professionally"],["tagline","Taglines"]]],["text","textarea","Details, notes or the client's message"],["tone","text","Tone",{value:"friendly and professional"}],["language","text","Language",{value:"English"}]]},
+{id:"quote",label:"Quotation PDF",url:"/api/tools/quote",json:1,hint:"One item per line: description | quantity | rate",
+ f:[["client","text","Client name"],["items","textarea","Items",{value:"Logo design | 1 | 5000\nVisiting card design | 1 | 1000"}],["gst_percent","number","GST % (0 if not applicable)",{value:0}],["quote_no","text","Quote number"],["notes","textarea","Notes / payment terms"]],
+ body:v=>({...v,gst_percent:+v.gst_percent||0,items:v.items.split("\n").map(l=>l.split("|").map(x=>x.trim())).filter(a=>a[0]).map(a=>({desc:a[0],qty:+a[1]||1,rate:+a[2]||0}))})},
+{id:"calc",label:"Print size calc",hint:"Pixels you need for a print size, bleed included.",local:v=>{const k=x=>Math.round((x+2*v.bl)/25.4*v.dpi);return `Final size: ${v.w} × ${v.h} mm\nWith bleed: ${+v.w+2*v.bl} × ${+v.h+2*v.bl} mm\nCanvas at ${v.dpi} DPI: ${k(+v.w)} × ${k(+v.h)} px`},f:[["w","number","Width (mm)",{value:90}],["h","number","Height (mm)",{value:54}],["dpi","number","DPI",{value:300}],["bl","number","Bleed (mm each side)",{value:3}]]},
+{id:"wa",label:"WhatsApp report",url:"/api/whatsapp/report",json:1,f:[["text","textarea","Report text for the boss"]]},
+{id:"status",label:"Status",get:"/api/status",f:[]}
+];
+const EXT={"image/png":"png","image/jpeg":"jpg","image/webp":"webp","image/svg+xml":"svg","application/pdf":"pdf","application/zip":"zip","audio/wav":"wav","application/vnd.openxmlformats-officedocument.presentationml.presentation":"pptx"};
+function mk(t,a,b){const e=document.createElement(t);if(a)Object.assign(e,a);if(b)e.append(...b);return e}
+const nav=$("nav"),secs=$("secs");
+TOOLS.forEach((t,n)=>{
+ const sec=mk("section",{id:t.id}),out=mk("div",{className:"o"}),els={};
+ if(t.hint)sec.append(mk("div",{className:"m",textContent:t.hint}));
+ t.f.forEach(([name,type,label,o])=>{o=o||{};sec.append(mk("label",{textContent:label}));let el;
+  if(type=="textarea")el=mk("textarea",{rows:3,value:o.value||""});
+  else if(type=="select")el=mk("select",{},(o.length?o:[]).map(([v,l])=>mk("option",{value:v,textContent:l})));
+  else{el=mk("input",{type:type=="file"?"file":type=="color"?"color":type=="number"?"number":"text",value:o.value??""});if(o.accept)el.accept=o.accept;if(o.multiple)el.multiple=true;if(o.step)el.step=o.step}
+  els[name]=[type,el];sec.append(el)});
+ sec.append(mk("div"),mk("button",{textContent:t.id=="status"?"Check engines":"Run",onclick:()=>run(t,els,out)}),out);secs.append(sec);
+ const b=mk("button",{textContent:t.label,onclick:()=>{document.querySelectorAll("section").forEach(s=>s.classList.toggle("on",s==sec));[...nav.children].forEach(c=>c.classList.toggle("on",c==b))}});nav.append(b);if(!n)b.click()});
+async function run(t,els,out){
+ const v={};for(const k in els){const[ty,el]=els[k];v[k]=ty=="file"?[...el.files]:el.value}
+ if(t.local){out.innerHTML="";out.append(mk("pre",{textContent:t.local(v)}));return}
+ out.textContent="Working…";let o={headers:H()};
+ if(t.json){const b=t.body?t.body(v):Object.fromEntries(Object.entries(v).filter(([k,x])=>x!==""&&x!=null).map(([k,x])=>[k,els[k][0]=="number"?+x:x]));o={method:"POST",headers:{...H(),"Content-Type":"application/json"},body:JSON.stringify(b)}}
+ else if(t.url){const f=new FormData();for(const k in v){if(els[k][0]=="file")v[k].forEach(x=>f.append(k,x));else if(v[k]!=="")f.append(k,v[k])}o={method:"POST",headers:H(),body:f}}
+ const r=await fetch(t.url||t.get,o);if(!r.ok){out.textContent="Error "+r.status+": "+await r.text();return}
+ const ct=r.headers.get("content-type")||"";out.innerHTML="";
+ if(ct.includes("json")){const j=await r.json();
+  if(j.colors)out.append(mk("div",{className:"sw"},j.colors.map(c=>mk("div",{style:`background:${c.hex};color:${c.text_on}`,textContent:`${c.hex} · ${c.percent}%`}))));
+  else if(j.text)out.append(mk("pre",{textContent:j.text}));
+  else out.append(mk("pre",{textContent:t.id=="status"?Object.entries(j).map(([k,x])=>(x=="up"?"✅ ":"⛔ ")+k).join("\n"):JSON.stringify(j,null,1)}))}
+ else{const u=URL.createObjectURL(await r.blob()),m=ct.split(";")[0];
+  if(m.startsWith("image/"))out.append(mk("img",{src:u}));if(m.startsWith("audio/"))out.append(mk("audio",{src:u,controls:true}));
+  out.append(mk("a",{className:"dl",href:u,download:"foster-output."+(EXT[m]||"bin"),textContent:"Download"}))}}
+</script></body></html>
